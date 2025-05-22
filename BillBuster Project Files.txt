@@ -1,0 +1,291 @@
+# requirements.txt
+pytesseract
+Pillow
+
+# .gitignore
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Distribution / packaging
+.dist-info/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+
+# PyInstaller
+# *.manifest
+# *.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
+*.log
+local_settings.py
+
+# Flask stuff:
+instance/
+.webassets-cache
+
+# Scrapy stuff:
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# celery beat schedule file
+celerybeat-schedule
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# Virtual environment
+venv/
+
+# config.py
+# Define categories and their corresponding keywords
+CATEGORIES = {
+    "Food": ["grocery", "supermarket", "restaurant", "cafe", "food", "dining"],
+    "Transportation": ["gas", "fuel", "taxi", "uber", "bus", "train"],
+    "Utilities": ["electricity", "water", "internet", "phone", "gas bill"],
+    "Entertainment": ["cinema", "movie", "concert", "game", "amusement"],
+    "Health": ["pharmacy", "clinic", "hospital", "doctor", "medicine"],
+    # Add more categories as needed
+}
+
+# ocr_utils.py
+import pytesseract
+from PIL import Image
+
+def extract_text(image_path):
+    """Extract text from an image using Tesseract OCR."""
+    try:
+        image = Image.open(image_path)
+        text = pytesseract.image_to_string(image)
+        return text.strip()
+    except Exception as e:
+        print(f"Error extracting text: {e}")
+        return ""
+
+# parser.py
+import re
+
+def extract_date(text):
+    """Extract date from the text using regex."""
+    lines = text.split("\n")
+    for line in lines:
+        if "date" in line.lower():
+            # Look for common date patterns
+            date_patterns = [
+                r"\d{1,2}/\d{1,2}/\d{2,4}",  # DD/MM/YYYY or MM/DD/YYYY
+                r"\d{4}-\d{1,2}-\d{1,2}",    # YYYY-MM-DD
+                r"\d{1,2}-\d{1,2}-\d{2,4}",  # DD-MM-YYYY or MM-DD-YYYY
+            ]
+            for pattern in date_patterns:
+                match = re.search(pattern, line)
+                if match:
+                    return match.group(0)
+    return None
+
+def extract_total(text):
+    """Extract total amount from the text using regex."""
+    lines = text.split("\n")
+    for line in lines:
+        if any(keyword in line.lower() for keyword in ["total", "amount", "subtotal"]):
+            # Look for currency amounts (e.g., $10.99 or 10.99)
+            amount_patterns = [
+                r"\$\d+\.\d{2}",  # $10.99
+                r"\d+\.\d{2}",    # 10.99 (assuming USD without $)
+            ]
+            for pattern in amount_patterns:
+                match = re.search(pattern, line)
+                if match:
+                    return match.group(0)
+    return None
+
+# categorizer.py
+def categorize(text, categories):
+    """Categorize spending based on keywords in the text."""
+    text_lower = text.lower()
+    for category, keywords in categories.items():
+        for keyword in keywords:
+            if keyword in text_lower:
+                return category
+    return "Other"
+
+# main.py
+import argparse
+import csv
+import os
+from ocr_utils import extract_text
+from parser import extract_date, extract_total
+from categorizer import categorize
+from config import CATEGORIES
+
+def main():
+    """Main function to process receipts and save data to CSV."""
+    parser = argparse.ArgumentParser(description="BillBuster: Smart Receipt & Bill Tracker")
+    parser.add_argument("--image", required=True, help="Path to the receipt image")
+    args = parser.parse_args()
+    image_path = args.image
+
+    # Extract text from the image
+    text = extract_text(image_path)
+    if not text:
+        print("No text found in the image.")
+        return
+
+    # Parse date and total from the text
+    date = extract_date(text) or "Unknown"
+    total = extract_total(text) or "Unknown"
+
+    # Categorize spending
+    category = categorize(text, CATEGORIES)
+
+    # Save data to CSV
+    csv_file = "expenses.csv"
+    if not os.path.exists(csv_file):
+        # Create CSV file with headers if it doesn't exist
+        with open(csv_file, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["Date", "Total", "Category", "Filename"])
+
+    # Append data to CSV
+    with open(csv_file, "a", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow([date, total, category, os.path.basename(image_path)])
+
+    print(f"Data saved: Date={date}, Total={total}, Category={category}")
+
+if __name__ == "__main__":
+    main()
+
+# README.md
+# BillBuster - Smart Receipt & Bill Tracker
+
+## Project Description
+BillBuster is a Python tool that uses Optical Character Recognition (OCR) to extract data from scanned bills and receipts. It categorizes spending based on predefined rules and saves the data to a CSV file for easy tracking and analysis, ideal for budgeting or tax purposes.
+
+## Key Features
+- Extracts text from receipt images using Tesseract OCR
+- Parses the text to identify date and total amount
+- Categorizes spending based on keywords in the receipt text
+- Saves extracted data to a CSV file for expense tracking
+
+## Real-world Use Cases
+- **Budgeting**: Track personal expenses by category (e.g., Food, Transportation) to manage finances.
+- **Tax Preparation**: Organize receipt data for deductible expenses, simplifying tax filing.
+- **Automation**: Reduce manual data entry by extracting information from physical receipts.
+
+## Installation Steps
+1. **Install Tesseract OCR**
+   - **Windows**:
+     - Download Tesseract from [GitHub](https://github.com/UB-Mannheim/tesseract/wiki)
+     - Install it and add the installation directory to your PATH (e.g., `C:\Program Files\Tesseract-OCR`)
+     - Verify installation: `tesseract --version`
+   - **Linux (Ubuntu)**:
+     - Run `sudo apt-get install tesseract-ocr`
+   - **macOS**:
+     - Install using Homebrew: `brew install tesseract`
+
+2. **Install Python dependencies**
+   - Create a virtual environment (optional): `python -m venv venv`
+   - Activate the virtual environment:
+     - Linux/macOS: `source venv/bin/activate`
+     - Windows: `venv\Scripts\activate`
+   - Install requirements: `pip install -r requirements.txt`
+
+3. **Clone this repository**
+   - `git clone https://github.com/yourusername/BillBuster.git`
+   - Replace `yourusername` with your GitHub username
+
+4. **Set up the project**
+   - Navigate to the project directory: `cd BillBuster`
+   - Edit `config.py` to add or modify categories and keywords as needed
+
+## How to Run
+1. Run the main script with the path to a receipt image:
+   ```bash
+   python main.py --image path/to/receipt.jpg
+   ```
+2. The extracted data (date, total, category, filename) will be appended to `expenses.csv` in the project directory.
+
+## Sample Output
+After running the script, `expenses.csv` will contain rows like:
+```csv
+Date,Total,Category,Filename
+2025-05-20,$54.99,Food,receipt1.jpg
+2025-05-21,$29.95,Transportation,receipt2.jpg
+```
+
+## Notes
+- **Tesseract Setup**: Ensure Tesseract is installed and accessible in your system's PATH. Test with `tesseract --version`.
+- **Image Quality**: OCR accuracy depends on clear, high-quality images. Preprocessing (e.g., with OpenCV) could improve results but is not included in this starter project.
+- **Customization**: Modify `config.py` to add categories or keywords for better categorization accuracy.
+- **Limitations**: The project uses simple regex for parsing and keyword matching for categorization, which may not handle all receipt formats perfectly. For advanced use, consider enhancing parsing logic or using NLP.
+
+## Future Enhancements
+- Add image preprocessing with OpenCV to improve OCR accuracy.
+- Support multiple currencies and more date formats.
+- Include a Streamlit interface for uploading images and viewing results interactively.
